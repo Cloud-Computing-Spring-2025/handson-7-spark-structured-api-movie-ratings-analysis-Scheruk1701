@@ -8,7 +8,7 @@ Before starting the assignment, ensure you have the following software installed
    - [Download and Install Python](https://www.python.org/downloads/)
    - Verify installation:
      ```bash
-     python3 --version
+     python --version
      ```
 
 2. **PySpark**:
@@ -73,7 +73,7 @@ You can run the analysis tasks either locally or using Docker.
 
 1. **Navigate to the Project Directory**:
    ```bash
-   cd MovieRatingsAnalysis/
+   cd workspaces/handson-7-spark-structured-api-movie-ratings-analysis-Scheruk1701
    ```
 
 2. **Execute Each Task Using `spark-submit`**:
@@ -89,7 +89,7 @@ You can run the analysis tasks either locally or using Docker.
    ls outputs/
    ```
    You should see:
-   - `binge_watching_patterns.txt`
+   - `binge_watching_patterns.csv`
    - `churn_risk_users.csv`
    - `movie_watching_trends.csv`
 
@@ -132,7 +132,7 @@ You can run the analysis tasks either locally or using Docker.
 
 ## **Overview**
 
-In this assignment, you will leverage Spark Structured APIs to analyze a dataset containing employee information from various departments within an organization. Your goal is to extract meaningful insights related to employee satisfaction, engagement, concerns, and job titles. This exercise is designed to enhance your data manipulation and analytical skills using Spark's powerful APIs.
+In this assignment, you will leverage Spark Structured APIs to analyze a dataset containing user information about movie ratings and streaming trends. Your goal is to extract meaningful insights related to user behavior, engagement, and movie-watching trends over time. This exercise is designed to enhance your data manipulation and analytical skills using Spark's powerful APIs.
 
 ## **Objectives**
 
@@ -186,107 +186,117 @@ UserID,MovieID,MovieTitle,Genre,Rating,ReviewCount,WatchedYear,UserLocation,AgeG
 
 You are required to complete the following three analysis tasks using Spark Structured APIs. Ensure that your analysis is well-documented, with clear explanations and any relevant visualizations or summaries.
 
-### **1. Identify Departments with High Satisfaction and Engagement**
+## **1. Detect Binge-Watching Patterns**
 
-**Objective:**
+### **Objective**
+Identify which age groups binge-watch movies the most by analyzing users who watched 3 or more movies in a single day.
 
-Determine which movies have an average watch time greater than 100 minutes and rank them based on user engagement.
+### **Approach**
+1. **Filter Users**: Select users who have `IsBingeWatched` set to `True`, indicating they watched 3 or more movies in a day.
+2. **Group by Age Group**: Count the number of binge-watchers in each age category (e.g., Teen, Adult, Senior).
+3. **Calculate Proportions**: Determine the percentage of binge-watchers within each age group based on the total number of users in that group.
 
-**Tasks:**
+### **Code Explanation**
+```python
+# Filter users who binge-watched
+binge_watchers_df = movie_ratings_df.filter(movie_ratings_df["IsBingeWatched"] == True)
 
-- **Filter Movies**: Select movies that have been watched for more than 100 minutes on average.
-- **Analyze Average Watch Time**: Compute the average watch time per user for each movie.
-- **Identify Top Movies**: List movies where the average watch time is among the highest.
+# Group by Age Group and count binge watchers
+binge_watchers_by_age_df = binge_watchers_df.groupBy("AgeGroup").count()
 
+# Calculate the total number of users per age group
+total_users_by_age_df = movie_ratings_df.groupBy("AgeGroup").count()
 
-**Expected Outcome:**
+# Join the dataframes to calculate the proportion of binge watchers
+binge_watchers_proportion_df = binge_watchers_by_age_df.join(total_users_by_age_df, "AgeGroup") \
+    .withColumn("Percentage", (binge_watchers_by_age_df["count"] / total_users_by_age_df["count"]) * 100)
 
-A list of departments meeting the specified criteria, along with the corresponding percentages.
+binge_watchers_proportion_df.show()
+```
 
-**Example Output:**
+### **Findings**
+The analysis revealed the following binge-watching trends by age group:
 
-| Age Group   | Binge Watchers | Percentage |
-|-------------|----------------|------------|
-| Teen        | 195            | 45%        |
-| Adult       | 145            | 38%        |
+| **Age Group** | **Binge Watchers** | **Percentage** |
+|---------------|--------------------|----------------|
+| Senior        | 21                 | 58.33%         |
+| Teen          | 20                 | 54.05%         |
+| Adult         | 16                 | 59.26%         |
 
----
-
-### **2. Identify Churn Risk Users**  
-
-**Objective:**  
-
-Find users who are **at risk of churn** by identifying those with **canceled subscriptions and low watch time (<100 minutes)**.
-
-**Tasks:**  
-
-- **Filter Users**: Select users who have `SubscriptionStatus = 'Canceled'`.  
-- **Analyze Watch Time**: Identify users with `WatchTime < 100` minutes.  
-- **Count At-Risk Users**: Compute the total number of such users.  
-
-**Expected Outcome:**  
-
-A count of users who **canceled their subscriptions and had low engagement**, highlighting **potential churn risks**.
-
-**Example Output:**  
-
-
-|Churn Risk Users                                  |	Total Users |
-|--------------------------------------------------|--------------|
-|Users with low watch time & canceled subscriptions|	350         |
-
-
+**Interpretation**: All age groups exhibited a high proportion of binge-watchers, with adults having the highest percentage of binge-watchers (59.26%), followed by seniors (58.33%) and teens (54.05%).
 
 ---
 
-### **3. Trend Analysis Over the Years**  
+## **2. Identify Churn Risk Users**
 
-**Objective:**  
+### **Objective**
+Find users who are at risk of churn by identifying those with canceled subscriptions and low watch time (<100 minutes).
 
-Analyze how **movie-watching trends** have changed over the years and find peak years for movie consumption.
+### **Approach**
+1. **Filter Users**: Select users who have `SubscriptionStatus` set to `'Canceled'`.
+2. **Analyze Watch Time**: Identify users with `WatchTime` less than 100 minutes.
+3. **Count At-Risk Users**: Compute the total number of users who have both canceled subscriptions and low watch time.
 
-**Tasks:**  
+### **Code Explanation**
+```python
+# Filter users with canceled subscriptions and low watch time
+churn_risk_users_df = movie_ratings_df.filter((movie_ratings_df["SubscriptionStatus"] == "Canceled") &
+                                               (movie_ratings_df["WatchTime"] < 100))
 
-- **Group by Watched Year**: Count the number of movies watched in each year.  
-- **Analyze Trends**: Identify patterns and compare year-over-year growth in movie consumption.  
-- **Find Peak Years**: Highlight the years with the highest number of movies watched.  
+# Count churn-risk users
+churn_risk_users_count = churn_risk_users_df.count()
+print(f"Total churn-risk users: {churn_risk_users_count}")
+```
 
-**Expected Outcome:**  
-
-A summary of **movie-watching trends** over the years, indicating peak years for streaming activity.
-
-**Example Output:**  
-
-| Watched Year | Movies watched |
-|--------------|----------------|
-| 2020         | 1200           |
-| 2021         | 1500           |
-| 2022         | 2100           |
-| 2023         | 2800           |
-
+### **Findings**
+The analysis revealed that there were **8 churn-risk users** who had canceled their subscriptions and had low engagement. These users represent a potential churn risk.
 
 ---
 
-## **Grading Criteria**
+## **3. Trend Analysis Over the Years**
 
-Your assignment will be evaluated based on the following criteria:
+### **Objective**
+Analyze how movie-watching trends have changed over the years and identify peak years for movie consumption.
 
-- **Question 1**: Correct identification of departments with over 50% high satisfaction and engagement (1 mark).
-- **Question 2**: Accurate analysis of employees who feel valued but didn’t suggest improvements, including proportion (1 mark).
-- **Question 3**: Proper comparison of engagement levels across job titles and correct identification of the top-performing job title (1 mark).
+### **Approach**
+1. **Group by Watched Year**: Count the number of movies watched each year.
+2. **Analyze Trends**: Identify patterns and compare year-over-year growth in movie consumption.
+3. **Find Peak Years**: Highlight the years with the highest number of movies watched.
 
-**Total Marks: 3**
+### **Code Explanation**
+```python
+# Group data by WatchedYear and count the number of movies watched
+yearly_trends_df = movie_ratings_df.groupBy("WatchedYear").agg({"MovieID": "count"})
+
+# Sort the results to identify the peak years
+yearly_trends_df = yearly_trends_df.orderBy("WatchedYear")
+yearly_trends_df.show()
+```
+
+### **Findings**
+The analysis showed the following trends in movie consumption over the years:
+
+| **Watched Year** | **Movies Watched** |
+|------------------|--------------------|
+| 2018             | 19                 |
+| 2019             | 17                 |
+| 2020             | 9                  |
+| 2021             | 17                 |
+| 2022             | 20                 |
+| 2023             | 18                 |
+
+**Interpretation**: Movie consumption fluctuated over the years, with the highest number of movies watched in 2022 (20 movies). The trend does not show a strong growth pattern, indicating that consumption may have been affected by external factors.
 
 ---
 
-## **Submission Guidelines**
+## **Conclusion**
 
-- **Code**: Submit all your PySpark scripts located in the `src/` directory.
-- **Report**: Include a report summarizing your findings for each task. Ensure that your report is well-structured, with clear headings and explanations.
-- **Data**: Ensure that the `movie_ratings_data.csv` used for analysis is included in the `data/` directory or provide a script for data generation if applicable.
-- **Format**: Submit your work in a zipped folder containing all necessary files.
-- **Deadline**: [Insert Deadline Here]
+This report provides valuable insights into movie-watching patterns and trends:
+
+1. **Binge-Watching Patterns**: All age groups exhibited a high proportion of binge-watchers, with adults leading the percentage, followed closely by seniors and teens.
+2. **Churn Risk Users**: A total of 8 churn-risk users were identified, representing a potential opportunity for targeted retention efforts.
+3. **Trend Analysis**: Movie consumption showed fluctuations over the years, with 2022 marking the highest number of movies watched, indicating that consumption might be influenced by various factors, such as global events or platform-specific changes.
+
+These insights are important for shaping retention strategies, content recommendations, and marketing efforts.
 
 ---
-
-Good luck, and happy analyzing!
